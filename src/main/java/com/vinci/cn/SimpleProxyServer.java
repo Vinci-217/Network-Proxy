@@ -15,20 +15,37 @@ public class SimpleProxyServer {
 
     public static Map<String, CachedObject> cache = new HashMap<>(); // 缓存结
 
-    private static final Set<String> blockedSites = new HashSet<>(Arrays.asList("bilibili.com.com", "xiaolincoding.com"));
+    private static final Set<String> blockedSites = new HashSet<>(Arrays.asList("bilibili.com", "xiaolincoding.com"));
 
     private static final Set<String> blockedUsers = new HashSet<>(Arrays.asList("user1", "user2"));
 
     static final Map<String, String> phishingMap = new HashMap<>() {{
-        put("example.com", "www.baidu.com");
+        put("hcl.baidu.com", "today.hit.edu.cn");
     }};
 
     public static boolean isBlocked(String host) {
-        return blockedSites.contains(host);
+        for (String blockedSite : blockedSites) {
+            if(host.contains(blockedSite))
+                return true;
+        }
+        return false;
+
     }
 
     public static boolean isBlockedUser(String user) {
-        return blockedUsers.contains(user);
+        for (String blockedUser : blockedUsers) {
+            if(user.equals(blockedUser))
+                return true;
+        }
+        return false;
+    }
+
+    public static boolean isPhishing(String host) {
+        for (String phishingSite : phishingMap.keySet()) {
+            if(host.contains(phishingSite))
+                return true;
+        }
+        return false;
     }
 
 
@@ -90,9 +107,14 @@ class ProxyTask implements Runnable {
                 return;
             }
 
+            String host;
             // 处理是否被阻止访问
-            String[] hostPort = requestParts[1].split(":");
-            String host = hostPort[0];
+            if(requestParts[1].startsWith("http://") || requestParts[1].startsWith("https://")){
+                 host = requestParts[1].split("/")[2];
+            }
+            else {
+                host = requestParts[1];
+            }
             if (SimpleProxyServer.isBlocked(host)) {
                 clientOutput.write("HTTP/1.1 403 Forbidden\r\n\r\n".getBytes());
                 System.out.println("访问被阻止: " + host);
@@ -102,7 +124,7 @@ class ProxyTask implements Runnable {
 
 
             // 处理网站钓鱼
-            if (SimpleProxyServer.phishingMap.containsKey(host)) {
+            if (SimpleProxyServer.isPhishing(host)) {
                 String phishingUrl = SimpleProxyServer.phishingMap.get(host);
                 requestLine = requestLine.replace(host, phishingUrl);
                 System.out.println("网站钓鱼: " + host + " -> " + phishingUrl);
@@ -179,7 +201,11 @@ class ProxyTask implements Runnable {
 
     private void handleGet(String requestLine, BufferedReader clientReader, OutputStream clientOutput) throws IOException {
         String[] requestParts = requestLine.split(" ");
-        URL url = new URL(requestParts[1]);
+
+        URL url ;
+        url = new URL( requestParts[1]);
+
+
         String cacheKey = url.toString();
 
         if (SimpleProxyServer.cache.containsKey(cacheKey)) {
@@ -190,9 +216,14 @@ class ProxyTask implements Runnable {
             // 发送带有If-Modified-Since头的请求
             Socket targetSocket = new Socket(url.getHost(), url.getPort() == -1 ? 80 : url.getPort());
             OutputStream targetOutput = targetSocket.getOutputStream();
-            targetOutput.write((requestLine + "\r\n").getBytes());
+
+            // 发送请求
+            targetOutput.write(("GET / HTTP/1.1\r\n").getBytes());
+            targetOutput.write(("Host: " + url.getHost() + "\r\n").getBytes());
             targetOutput.write(modifiedSinceHeader.getBytes());
+            targetOutput.write("Connection: close\r\n".getBytes());
             targetOutput.write("\r\n".getBytes());
+
             targetOutput.flush();
 
             // 读取响应
@@ -205,15 +236,51 @@ class ProxyTask implements Runnable {
                 clientOutput.write(cachedObject.response.getBytes());
             } else {
                 // 更新缓存
+                System.out.println("缓存更新");
                 StringBuilder responseBuilder = new StringBuilder();
                 while (responseLine != null) {
                     responseBuilder.append(responseLine).append("\r\n");
                     responseLine = targetReader.readLine();
                 }
-                SimpleProxyServer.cache.put(cacheKey, new CachedObject(responseBuilder.toString(), System.currentTimeMillis()));
                 clientOutput.write(responseBuilder.toString().getBytes());
+                SimpleProxyServer.cache.put(cacheKey, new CachedObject(responseBuilder.toString(), System.currentTimeMillis()));
+
             }
             clientOutput.flush();
+            targetSocket.close();
+            clientSocket.close();
+        }
+        else {
+            System.out.println("缓存未命中");
+            // 缓存未命中，向目标服务器发送请求
+            Socket targetSocket = new Socket(url.getHost(), url.getPort() == -1 ? 80 : url.getPort());
+            OutputStream targetOutput = targetSocket.getOutputStream();
+            BufferedReader targetReader = new BufferedReader(new InputStreamReader(targetSocket.getInputStream()));
+
+            // 发送请求
+            targetOutput.write(("GET / HTTP/1.1\r\n").getBytes());
+            targetOutput.write(("Host: " + url.getHost() + "\r\n").getBytes());
+            targetOutput.write("Connection: close\r\n".getBytes());
+            targetOutput.write("\r\n".getBytes());
+            targetOutput.flush();
+
+            // 读取响应
+            String responseLine;
+            StringBuilder responseBuilder = new StringBuilder();
+            while ((responseLine = targetReader.readLine()) != null) {
+                responseBuilder.append(responseLine).append("\r\n");
+            }
+
+            // 存入缓存
+            SimpleProxyServer.cache.put(cacheKey, new CachedObject(responseBuilder.toString(), System.currentTimeMillis()));
+
+            System.out.println(responseBuilder);
+
+            // 向客户端返回响应
+            clientOutput.write(responseBuilder.toString().getBytes());
+            clientOutput.flush();
+
+            // 关闭连接
             targetSocket.close();
             clientSocket.close();
         }
