@@ -85,6 +85,7 @@ class ProxyTask implements Runnable {
             String clientIP = clientSocket.getInetAddress().getHostAddress();
             if (SimpleProxyServer.isBlockedUser(clientIP)) {
                 clientOutput.write("HTTP/1.1 403 Forbidden\r\n\r\n".getBytes());
+                clientOutput.flush();
                 System.out.println("用户被阻止访问: " + clientIP);
                 clientSocket.close();
                 return;

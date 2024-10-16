@@ -4,7 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="9ca0f00c-9a1a-4946-abb7-3cd5ad52ec5d" name="更改" comment="">
+    <list default="true" id="9ca0f00c-9a1a-4946-abb7-3cd5ad52ec5d" name="更改" comment="feat: 完成全部代码">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/java/com/vinci/cn/SimpleProxyServer.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/vinci/cn/SimpleProxyServer.java" afterDir="false" />
     </list>
@@ -23,6 +23,18 @@
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
+  <component name="GitHubPullRequestSearchHistory"><![CDATA[{
+  "lastFilter": {
+    "state": "OPEN",
+    "assignee": "Vinci-217"
+  }
+}]]></component>
+  <component name="GithubPullRequestsUISettings"><![CDATA[{
+  "selectedUrlAndAccountId": {
+    "url": "https://github.com/Vinci-217/Network-Proxy.git",
+    "accountId": "ce1bfafa-39dc-44f8-b562-e30924fe165b"
+  }
+}]]></component>
   <component name="MavenImportPreferences">
     <option name="generalSettings">
       <MavenGeneralSettings>
@@ -60,9 +72,15 @@
     "应用程序.Server.executor": "Debug",
     "应用程序.SimpleHttpProxyServer.executor": "Debug",
     "应用程序.SimpleProxyServer.executor": "Debug",
-    "应用程序.SocketServer.executor": "Run"
+    "应用程序.SocketServer.executor": "Run",
+    "应用程序.socketServer.executor": "Debug"
   }
 }]]></component>
+  <component name="RecentsManager">
+    <key name="MoveFile.RECENT_KEYS">
+      <recent name="C:\Users\Fan\Desktop\Network\src\main\java\com\vinci\cn" />
+    </key>
+  </component>
   <component name="SharedIndexes">
     <attachedChunks>
       <set>
@@ -85,7 +103,25 @@
       <workItem from="1728906761290" duration="313000" />
       <workItem from="1728908101690" duration="1377000" />
       <workItem from="1728909646107" duration="898000" />
+      <workItem from="1729045337522" duration="3459000" />
     </task>
+    <task id="LOCAL-00001" summary="feat: 完成全部代码">
+      <option name="closed" value="true" />
+      <created>1728996970688</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1728996970688</updated>
+    </task>
+    <task id="LOCAL-00002" summary="feat: 完成全部代码">
+      <option name="closed" value="true" />
+      <created>1728996983859</created>
+      <option name="number" value="00002" />
+      <option name="presentableId" value="LOCAL-00002" />
+      <option name="project" value="LOCAL" />
+      <updated>1728996983859</updated>
+    </task>
+    <option name="localTasksCounter" value="3" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -102,15 +138,8 @@
       </map>
     </option>
   </component>
-  <component name="XDebuggerManager">
-    <breakpoint-manager>
-      <breakpoints>
-        <line-breakpoint enabled="true" type="java-line">
-          <url>file://$PROJECT_DIR$/src/main/java/com/vinci/cn/SimpleProxyServer.java</url>
-          <line>126</line>
-          <option name="timeStamp" value="22" />
-        </line-breakpoint>
-      </breakpoints>
-    </breakpoint-manager>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="feat: 完成全部代码" />
+    <option name="LAST_COMMIT_MESSAGE" value="feat: 完成全部代码" />
   </component>
 </project>
