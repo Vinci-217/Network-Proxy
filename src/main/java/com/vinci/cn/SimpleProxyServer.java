@@ -84,7 +84,17 @@ class ProxyTask implements Runnable {
             // 处理用户是否被阻止访问
             String clientIP = clientSocket.getInetAddress().getHostAddress();
             if (SimpleProxyServer.isBlockedUser(clientIP)) {
-                clientOutput.write("HTTP/1.1 403 Forbidden\r\n\r\n".getBytes());
+//                String response = "HTTP/1.1 403 ok\r\n" +
+//                        "Content-Length: " + body.getBytes().length + "\r\n" +
+//                        "Content-Type: textml; charset-utf-8\r\n" +
+////                            "\r\n" +
+////                            body +
+//                        "\r\n";
+                clientOutput.write("HTTP/1.1 403 Forbidden\r\n".getBytes());
+                clientOutput.write("Content-Length: 15\r\n".getBytes());
+                clientOutput.write("Content-Type: text/html; charset-utf-8\r\n".getBytes());
+//                clientOutput.write("Connection: close\r\n".getBytes());
+                clientOutput.write("\r\n".getBytes());
                 clientOutput.flush();
                 System.out.println("用户被阻止访问: " + clientIP);
                 clientSocket.close();
@@ -109,16 +119,27 @@ class ProxyTask implements Runnable {
             }
 
             String host;
-            // 处理是否被阻止访问
+
+
             if(requestParts[1].startsWith("http://") || requestParts[1].startsWith("https://")){
                  host = requestParts[1].split("/")[2];
             }
             else {
                 host = requestParts[1];
             }
+
+            // 处理是否被阻止访问
             if (SimpleProxyServer.isBlocked(host)) {
-                clientOutput.write("HTTP/1.1 403 Forbidden\r\n\r\n".getBytes());
-                System.out.println("访问被阻止: " + host);
+                // 发送状态行
+                clientOutput.write("HTTP/1.1 403 Forbidden\r\n".getBytes());
+                // 发送响应头
+                clientOutput.write("Content-Length: 0\r\n".getBytes());
+                clientOutput.write("Content-Type: text/html; charset=utf-8\r\n".getBytes());
+                // 发送空行
+                clientOutput.write("\r\n".getBytes());
+                // 刷新输出流
+                clientOutput.flush();
+                System.out.println("网页访问被阻止: " + host);
                 clientSocket.close();
                 return;
             }
