@@ -4,6 +4,8 @@ import java.io.*;
 import java.net.*;
 import java.util.*;
 
+import static com.vinci.cn.SimpleProxyServer.saveCacheToFile;
+
 public class SimpleProxyServer {
     private static final int PROXY_PORT = 8080; // 代理服务器的端口
 
@@ -22,6 +24,29 @@ public class SimpleProxyServer {
     static final Map<String, String> phishingMap = new HashMap<>() {{
         put("hcl.baidu.com", "today.hit.edu.cn");
     }};
+
+    public static void saveCacheToFile() {
+        File file = new File("cache.dat");
+        try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(file))) {
+            oos.writeObject(cache);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public static void loadCacheFromFile() {
+        File file = new File("cache.dat");
+        if (file.exists()) {
+            try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(file))) {
+                Object readObject = ois.readObject();
+                if (readObject instanceof Map) {
+                    cache = (Map<String, CachedObject>) readObject;
+                }
+            } catch (IOException | ClassNotFoundException e) {
+                e.printStackTrace();
+            }
+        }
+    }
 
     public static boolean isBlocked(String host) {
         for (String blockedSite : blockedSites) {
@@ -52,9 +77,12 @@ public class SimpleProxyServer {
 
 
     public static void main(String[] args) throws IOException {
+        loadCacheFromFile();
+
         // 创建一个服务器Socket，监听指定端口
         ServerSocket serverSocket = new ServerSocket(PROXY_PORT);
         System.out.println("代理服务器已启动，监听端口：" + PROXY_PORT);
+
 
         while (true) {
             // 接受客户端的连接
@@ -130,12 +158,24 @@ class ProxyTask implements Runnable {
 
             // 处理是否被阻止访问
             if (SimpleProxyServer.isBlocked(host)) {
-                // 发送状态行
-                clientOutput.write("HTTP/1.1 403 Forbidden\r\n".getBytes());
-                // 发送响应头
-                clientOutput.write("Content-Length: 0\r\n".getBytes());
-                clientOutput.write("Content-Type: text/html; charset=utf-8\r\n".getBytes());
-                // 发送空行
+                String response = "HTTP/1.1 403 Forbidden\n" +
+                        "Date: Fri, 18 Oct 2024 12:00:00 GMT\n" +
+                        "Server: Apache/2.4.1 (Unix)\n" +
+                        "WWW-Authenticate: Basic realm=\"Access to the site\"\n" +
+                        "Content-Type: text/html; charset=iso-8859-1\n" +
+                        "Content-Length: 234\n" +
+                        "Connection: close\n" +
+                        "\n" +
+                        "<html>\n" +
+                        "<head>\n" +
+                        "<title>403 Forbidden</title>\n" +
+                        "</head>\n" +
+                        "<body>\n" +
+                        "<h1>403 Forbidden</h1>\n" +
+                        "<p>You don't have permission to access the requested object. It is either read-protected or not readable by the server.</p>\n" +
+                        "</body>\n" +
+                        "</html>\n" ;
+                clientOutput.write(response.getBytes());
                 clientOutput.write("\r\n".getBytes());
                 // 刷新输出流
                 clientOutput.flush();
@@ -148,7 +188,7 @@ class ProxyTask implements Runnable {
             // 处理网站钓鱼
             if (SimpleProxyServer.isPhishing(host)) {
                 String phishingUrl = SimpleProxyServer.phishingMap.get(host);
-                requestLine = requestLine.replace(host, phishingUrl);
+                doPhishing(clientOutput, clientReader, host, phishingUrl);
                 System.out.println("网站钓鱼: " + host + " -> " + phishingUrl);
             }
 
@@ -165,6 +205,27 @@ class ProxyTask implements Runnable {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    private void doPhishing(OutputStream clientOutput, BufferedReader clientReader, String host, String phishingUrl) throws IOException {
+
+        // 自定义一个页面进行钓鱼
+        String body = "<html><body><h1>Welcome to " + phishingUrl + "</h1>" +
+                "<p>You are visiting " + host + " which is a fake website.</p>" +
+                "<p>Please click the following link to visit the original website:</p>" +
+                "<a href=\"" + host + "\">" + host + "</a>" +
+                "</body></html>";
+
+        // 发送响应
+        clientOutput.write("HTTP/1.1 200 OK\r\n".getBytes());
+        clientOutput.write(("Content-Length: " + body.getBytes().length + "\r\n").getBytes());
+        clientOutput.write("Content-Type: text/html; charset=utf-8\r\n".getBytes());
+        clientOutput.write("\r\n".getBytes());
+        clientOutput.write(body.getBytes());
+
+        clientOutput.flush();
+        clientSocket.close();
+
     }
 
     private void handleConnect(String requestLine, BufferedReader clientReader, OutputStream clientOutput) {
@@ -240,10 +301,25 @@ class ProxyTask implements Runnable {
             OutputStream targetOutput = targetSocket.getOutputStream();
 
             // 发送请求
-            targetOutput.write(("GET / HTTP/1.1\r\n").getBytes());
-            targetOutput.write(("Host: " + url.getHost() + "\r\n").getBytes());
-            targetOutput.write(modifiedSinceHeader.getBytes());
-            targetOutput.write("Connection: close\r\n".getBytes());
+            // 读取请求头的第一行
+            targetOutput.write(requestLine.getBytes());
+            System.out.println(requestLine);
+            targetOutput.write("\r\n".getBytes()); // 每行后面加上换行符
+
+            // 逐行读取其他请求头
+            String headerLine;
+            while ((headerLine = clientReader.readLine()) != null && !headerLine.isEmpty()) {
+                if (headerLine.startsWith("Proxy-Connection:")) {
+                    headerLine = headerLine.replace("Proxy-Connection: keep-alive", "Connection: close");
+                }
+                if (headerLine.startsWith("Connection:")) {
+                    headerLine = headerLine.replace("Connection: keep-alive", "Connection: close");
+                }
+                targetOutput.write(headerLine.getBytes());
+                System.out.println(headerLine);
+                targetOutput.write("\r\n".getBytes()); // 每行后面加上换行符
+            }
+
             targetOutput.write("\r\n".getBytes());
 
             targetOutput.flush();
@@ -251,8 +327,10 @@ class ProxyTask implements Runnable {
             // 读取响应
             BufferedReader targetReader = new BufferedReader(new InputStreamReader(targetSocket.getInputStream()));
             String responseLine = targetReader.readLine();
+            System.out.println("返回响应: "+responseLine);
 
             if (responseLine.contains("304 Not Modified")) {
+
                 System.out.println("缓存命中");
                 // 缓存未修改，返回缓存数据
                 clientOutput.write(cachedObject.response.getBytes());
@@ -280,9 +358,31 @@ class ProxyTask implements Runnable {
             BufferedReader targetReader = new BufferedReader(new InputStreamReader(targetSocket.getInputStream()));
 
             // 发送请求
-            targetOutput.write(("GET / HTTP/1.1\r\n").getBytes());
-            targetOutput.write(("Host: " + url.getHost() + "\r\n").getBytes());
-            targetOutput.write("Connection: close\r\n".getBytes());
+//            targetOutput.write(("GET / HTTP/1.1\r\n").getBytes());
+//            targetOutput.write(("Host: " + url.getHost() + "\r\n").getBytes());
+//            targetOutput.write("Connection: close\r\n".getBytes());
+//            targetOutput.write("\r\n".getBytes());
+
+            // 读取请求头的第一行
+            targetOutput.write(requestLine.getBytes());
+            System.out.println(requestLine);
+            targetOutput.write("\r\n".getBytes()); // 每行后面加上换行符
+
+            // 逐行读取其他请求头
+            String headerLine;
+            while ((headerLine = clientReader.readLine()) != null && !headerLine.isEmpty()) {
+                if (headerLine.startsWith("Proxy-Connection:")) {
+                    headerLine = headerLine.replace("Proxy-Connection: keep-alive", "Connection: close");
+                }
+                if (headerLine.startsWith("Connection:")) {
+                    headerLine = headerLine.replace("Connection: keep-alive", "Connection: close");
+                }
+                targetOutput.write(headerLine.getBytes());
+                System.out.println(headerLine);
+                targetOutput.write("\r\n".getBytes()); // 每行后面加上换行符
+            }
+
+            // 发送空行表示请求头结束
             targetOutput.write("\r\n".getBytes());
             targetOutput.flush();
 
@@ -295,8 +395,8 @@ class ProxyTask implements Runnable {
 
             // 存入缓存
             SimpleProxyServer.cache.put(cacheKey, new CachedObject(responseBuilder.toString(), System.currentTimeMillis()));
-
-            System.out.println(responseBuilder);
+            saveCacheToFile();
+//            System.out.println(responseBuilder);
 
             // 向客户端返回响应
             clientOutput.write(responseBuilder.toString().getBytes());
@@ -356,4 +456,18 @@ class CachedObject {
         this.response = response;
         this.timestamp = timestamp;
     }
+
+    // 实现对象到字符串的序列化
+    public String serialize() {
+        // 使用一种序列化方式，例如JSON
+        return "{\"response\":\"" + response + "\",\"timestamp\":" + timestamp + "}";
+    }
+
+    // 实现字符串到对象的反序列化
+    public static CachedObject deserialize(String serialized) {
+        // 使用相应的反序列化方式，例如JSON
+        // 这里省略了具体的反序列化代码
+        return new CachedObject("response", 0); // 示例返回值
+    }
+
 }
